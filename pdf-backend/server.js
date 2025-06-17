@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -18,13 +17,10 @@ app.get('/logs', (req, res) => {
   res.flushHeaders();
 
   clients.push(res);
-
-  req.on('close', () => {
-    clients = clients.filter(c => c !== res);
-  });
+  req.on('close', () => clients = clients.filter(c => c !== res));
 });
 
-function broadcastLog(line) {
+function broadcast(line) {
   clients.forEach(res => res.write(`data: ${line}\n\n`));
 }
 
@@ -33,25 +29,26 @@ app.post('/generate', async (req, res) => {
 
   const script = spawn('node', ['generate.js', username, password]);
 
+  let base64Buffer = '';
+
   script.stdout.on('data', data => {
-    broadcastLog(data.toString());
+    const msg = data.toString();
+    if (msg.startsWith('PDF_BASE64_START')) {
+      base64Buffer += msg.replace('PDF_BASE64_START', '');
+    } else if (msg.startsWith('PDF_BASE64_CONT')) {
+      base64Buffer += msg.replace('PDF_BASE64_CONT', '');
+    } else {
+      broadcast(msg);
+    }
   });
 
   script.stderr.on('data', data => {
-    broadcastLog('❌ Error: ' + data.toString());
+    broadcast('❌ Error: ' + data.toString());
   });
 
-  script.on('close', async () => {
-    if (fs.existsSync('final-output.pdf')) {
-      const pdfData = fs.readFileSync('final-output.pdf');
-      fs.unlinkSync('final-output.pdf'); // clean up
-      res.json({ base64Pdf: pdfData.toString('base64') });
-    } else {
-      res.status(500).json({ error: 'PDF generation failed' });
-    }
+  script.on('close', () => {
+    res.json({ base64Pdf: base64Buffer });
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server running at http://localhost:${PORT}`));
