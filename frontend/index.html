@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Generate PDF - Rohit Choubey</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #f4f4f9;
+      --card-bg: #ffffff;
+      --primary: #4f46e5;
+      --text: #333;
+      --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card-bg);
+      padding: 30px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      border-radius: 16px;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 24px;
+      color: var(--primary);
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #3b39ca;
+    }
+
+    #log {
+      margin-top: 24px;
+      padding: 16px;
+      background: #eef1ff;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      height: 160px;
+      overflow-y: auto;
+      white-space: pre-line;
+      animation: fadeIn 0.4s ease-in-out;
+    }
+
+    .line {
+      opacity: 0;
+      animation: fadeInLine 0.5s ease-in-out forwards;
+    }
+
+    @keyframes fadeInLine {
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    #download a {
+      display: block;
+      margin-top: 20px;
+      text-align: center;
+      color: var(--primary);
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    #download a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🔐 PDF Generator by Rohit Choubey</h2>
+    <input id="username" placeholder="Enter Application Number" />
+    <input id="password" placeholder="Enter Password" type="password" />
+    <button onclick="generatePDF()">Generate PDF of All Questions</button>
+
+    <div id="log">Waiting for logs...</div>
+    <div id="download"></div>
+  </div>
+
+  <script>
+    const logDiv = document.getElementById('log');
+    const downloadDiv = document.getElementById('download');
+
+    const eventSource = new EventSource('/logs');
+    eventSource.onmessage = (event) => {
+      const line = document.createElement('div');
+      line.className = 'line';
+      line.textContent = event.data;
+      logDiv.appendChild(line);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    };
+
+    async function generatePDF() {
+      logDiv.innerHTML = '⏳ Starting process...\n';
+      downloadDiv.innerHTML = '';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      const res = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+      if (data.base64Pdf) {
+        const blob = new Blob([Uint8Array.from(atob(data.base64Pdf), c => c.charCodeAt(0))], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        downloadDiv.innerHTML = `<a href="${url}" download="question-paper.pdf">⬇️ Download PDF</a>`;
+      } else {
+        downloadDiv.innerHTML = `<span style="color:red;">❌ Failed to generate PDF</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
